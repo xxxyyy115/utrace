@@ -1,0 +1,70 @@
+# Makefile for UVPI tools
+#
+# Usage:
+#   make -f Makefile.uvpi all        # Build everything
+#   make -f Makefile.uvpi utrace     # Build utrace only
+#   make -f Makefile.uvpi cpp_demo   # Build demo only
+#   make -f Makefile.uvpi clean      # Clean generated files
+
+UVD_HOME ?= /data/univista/UVD/latest
+CXX = $(UVD_HOME)/uvs/tool/gcc-10.3.0/bin/g++
+UVPI_INC = $(UVD_HOME)/lib/uvpi/include
+UVPI_LIB = $(UVD_HOME)/lib/uvpi
+UVPI_PY_LIB = $(UVD_HOME)/lib/uvpi_py
+
+# USDB and design database files
+USDB_FILE = vista.usdb
+DESIGN_DB = uvsim.db
+
+LD_LIBRARY_PATH := $(UVPI_LIB):$(UVPI_LIB)/fex:$(LD_LIBRARY_PATH)
+export LD_LIBRARY_PATH
+
+CXXFLAGS = -I$(UVPI_INC) -std=c++17 -g -O0
+LDFLAGS = -L$(UVPI_LIB) -lUVPI -ldl -lpthread -lrt -lz -Wl,-rpath,$(UVD_HOME)/lib/uvpi
+
+# --- Targets ---
+
+all: utrace cpp_demo
+
+utrace: utrace.o
+	$(CXX) -o $@ $< $(LDFLAGS)
+
+utrace.o: utrace.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+cpp_demo: uvpi_usdb_demo.o
+	$(CXX) -o uvpi_usdb_demo $< $(LDFLAGS)
+
+uvpi_usdb_demo.o: uvpi_usdb_demo.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# --- Run ---
+
+run_utrace_drive: 
+	./utrace drive -d $(DESIGN_DB) -u $(USDB_FILE) -s tb.reg_a
+
+run_utrace_drive_act: 
+	./utrace drive -d $(DESIGN_DB) -u $(USDB_FILE) -s tb.reg_a  -t 10
+
+
+run_utrace_load: utrace
+	./utrace load -d $(DESIGN_DB) -u $(USDB_FILE) -s tb.reg_a
+
+run_cpp: cpp_demo
+	./uvpi_usdb_demo -d $(DESIGN_DB) -u $(USDB_FILE)
+
+run_py:
+	$(UVD_HOME)/bin/pyuvpi uvpi_usdb_demo.py -d $(DESIGN_DB) -u $(USDB_FILE)
+
+run_tcl:
+	$(UVD_HOME)/bin/uvpi -script uvpi_usdb_demo.tcl -d $(DESIGN_DB) -u $(USDB_FILE)
+
+# --- Clean ---
+
+clean:
+	rm -f utrace utrace.o
+	rm -f uvpi_usdb_demo uvpi_usdb_demo.o
+	rm -f hierarchy_tree.csv module_info.txt
+	rm -f __pycache__/*.pyc
+
+.PHONY: all cpp_demo utrace run_utrace_drive run_utrace_load run_cpp run_py run_tcl clean
